@@ -1,9 +1,4 @@
-package main	
-
-import (
-	"fmt"
-	"math/rand"
-)
+package main
 
 import (
 	"math/rand"
@@ -78,19 +73,40 @@ func Main() {
 	channel := make(chan packet)
 }
 
-func Host(name string, comChan chan int, packetChan chan packet) {
-	datasize := ran
-	CreateRandomData()
+func Client(name string, comChan chan int, comChan2 chan int, packetChan chan packet, confChan chan int) {
+
+	//createpacketfunc
+	//3wayhandshakefunc
+	for true {
+		senddata := rand.Int31n(2)
+		if senddata == 1 {
+			datasize := rand.Int()
+			data := CreateRandomData(datasize)
+			comChan <- 1
+			time.Sleep(5)
+			if <-comChan2 == 2 {
+				comChan <- 3
+				FragmentMessage(data)
+				//packetChan <- packet
+				//for loop{
+				if <-confChan == 1 {
+					//packetChan <- packet
+				}
+			}
+		}
+	}
+
+	/*if 3wayhandshake=accepted {
+		packpacketChan <- //packet
+	}*/
 
 }
 
 func CreateRandomData(n int) string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    b := make([]rune, n)
-    for i := range b {
-        b[i] = letterRunes[rand.Intn(len(letterRunes))]
-    }
-    return string(b)
-}
-
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
