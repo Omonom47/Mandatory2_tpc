@@ -36,6 +36,7 @@ func FragmentMessage(message string) []packet {
 		fragment[i%8] = asBytes[i]
 		if i+1%8 == 0 {
 			toReturn = append(toReturn, MakePacket(fragment, seq, source, destination))
+			seq++
 		}
 	}
 
