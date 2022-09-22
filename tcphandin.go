@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/rand"
+	"time"
 )
 
 type packet struct {
@@ -9,6 +10,8 @@ type packet struct {
 	destination uint16
 	sequenceNum uint32
 	checksum    uint16
+	timeStamp   time.Time
+	lifeTime    uint8
 	data        [8]byte
 }
 
@@ -19,6 +22,8 @@ func MakePacket(data [8]byte, seqNum uint32, srcPort uint16, desPort uint16) pac
 	p.destination = desPort
 	p.sequenceNum = seqNum
 	p.checksum = PacketHash(p)
+	p.timeStamp = time.Now()
+	p.lifeTime = 5
 
 	return p
 }
