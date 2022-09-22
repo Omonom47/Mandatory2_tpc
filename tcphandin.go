@@ -1,4 +1,9 @@
-package main
+package main	
+
+import (
+	"fmt"
+	"math/rand"
+)
 
 type packet struct {
 	source      uint16
@@ -32,4 +37,21 @@ func IntPow(base uint16, exp int) uint16 {
 func Main() {
 
 	channel := make(chan packet)
+}
+
+func Host(name string, comChan chan int, packetChan chan packet) {
+	datasize := ran
+	CreateRandomData()
+
+}
+
+func CreateRandomData(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    b := make([]rune, n)
+    for i := range b {
+        b[i] = letterRunes[rand.Intn(len(letterRunes))]
+    }
+    return string(b)
+}
+
 }
