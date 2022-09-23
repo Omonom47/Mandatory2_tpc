@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -48,11 +49,6 @@ func FragmentMessage(message string) []packet {
 	return toReturn
 }
 
-type Pair[T, U any] struct {
-	First  T
-	Second U
-}
-
 func PacketHash(p packet) uint16 {
 	var h uint16
 	for i := 0; i < len(p.data); i++ {
@@ -76,13 +72,12 @@ func IntPow(base uint16, exp int) uint16 {
 func Host(name string, syn chan Pair[int, int], ack chan int, packetchan chan packet) {
 
 }
-
 func Main() {
 	channel := make(chan packet)
 
 }
 
-func Server(p chan packet, syncChan [2]chan int, ackChan [2]chan int) {
+func Server(packet chan []packet, syncChan [2]chan int, ackChan [2]chan int) {
 	initSeq := rand.Intn(2-1) + 1 //number between 1-2
 	seqRecived := <-syncChan[1]
 	if initSeq == seqRecived {
@@ -93,6 +88,59 @@ func Server(p chan packet, syncChan [2]chan int, ackChan [2]chan int) {
 	} else {
 		ackChan[0] <- 0 //cannot establish contact
 	}
+
+	if <-ackChan[0] == 1 && <-syncChan[0] == 1 {
+		//Send packet here
+
+		//need to generate a queue that checks the packet number to output it correcly
+		dataRecived := <-packet
+		for i := 0; i < len(dataRecived); i++ {
+			fmt.Print(dataRecived)
+		}
+
+		//end of message
+		//need to have the real fin?
+		time.Sleep(10)
+		ackChan[0] <- 0
+		syncChan[0] <- 0
+	}
+	time.Sleep(10)
 }
 
-//server kører herinde
+func Client(name string, comChan chan int, comChan2 chan int, packetChan chan packet, confChan chan int) {
+
+	//createpacketfunc
+	//3wayhandshakefunc
+	for true {
+		senddata := rand.Int31n(2)
+		if senddata == 1 {
+			datasize := rand.Int()
+			data := CreateRandomData(datasize)
+			comChan <- 1
+			time.Sleep(5)
+			if <-comChan2 == 2 {
+				comChan <- 3
+				FragmentMessage(data)
+				//packetChan <- packet
+				//for loop{
+				if <-confChan == 1 {
+					//packetChan <- packet
+				}
+			}
+		}
+	}
+
+	/*if 3wayhandshake=accepted {
+		packpacketChan <- //packet
+	}*/
+
+}
+
+func CreateRandomData(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
