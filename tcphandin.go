@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -17,16 +16,16 @@ type packet struct {
 	timeStamp   time.Time
 	lifeTime    uint8
 	mesLen      uint32
-	data        [8]byte
+	data        byte
 }
 
-func MakePacket(data [8]byte, seqNum uint32, srcPort uint16, desPort uint16) packet {
+func MakePacket(data byte, seqNum uint32, srcPort uint16, desPort uint16, mesHash uint16) packet {
 	var p packet
 	p.data = data
 	p.source = srcPort
 	p.destination = desPort
 	p.sequenceNum = seqNum
-	p.checksum = PacketHash(p)
+	p.checksum = mesHash
 	p.timeStamp = time.Now()
 	p.lifeTime = 5
 
@@ -38,39 +37,25 @@ func FragmentMessage(message string) []packet {
 	toReturn := make([]packet, 0, 4)
 	var seq uint32 = 0
 
+	mesHash := PacketHash(message)
+
 	source := uint16(rand.Int31n(1024))
 	destination := uint16(rand.Int31n(1024))
 
-	var fragment [8]byte
-	for i := 0; i < mesLen; i++ {
-		fragment[i%8] = message[i]
-		if (i+1)%8 == 0 {
-			toReturn = append(toReturn, MakePacket(fragment, seq, source, destination))
-			seq++
-		}
-		checkNum := mesLen - i
-		if checkNum < 8 {
-			for x := 0; x < checkNum; x++ {
-				fragment[x%8] = message[x+i]
-			}
-			toReturn = append(toReturn, MakePacket(fragment, seq, source, destination))
-			break
-		}
-	}
-
-	fmt.Println(mesLen, ":mesLen, ", len(toReturn), ":toReturn")
-
-	for i := 0; i < len(toReturn); i++ {
-		toReturn[i].mesLen = uint32(len(toReturn))
+	for seq < uint32(mesLen) {
+		p := MakePacket(message[seq], seq, source, destination, mesHash)
+		p.mesLen = uint32(mesLen)
+		toReturn = append(toReturn, p)
+		seq++
 	}
 
 	return toReturn
 }
 
-func PacketHash(p packet) uint16 {
+func PacketHash(message string) uint16 {
 	var h uint16
-	for i := 0; i < len(p.data); i++ {
-		h += uint16(p.data[i]) * IntPow(53, i) % 17959
+	for i := 0; i < len(message); i++ {
+		h += uint16(message[i]) * IntPow(53, i) % 17959
 	}
 	return h
 }
@@ -115,7 +100,6 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 
 	recieved := <-threewayChan
 	randomSeq := rand.Int()
-	var message string
 	if recieved[0] == 1 {
 		threewayChan <- [2]int{recieved[1] + 1, randomSeq}
 	} else {
@@ -125,14 +109,15 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 	if recieved[0] == randomSeq+1 {
 		//confirmation of recieving packet
 		var p packet
-		dataRecived := make([]packet, 4) //queue with packet that sort into right order
+		dataRecived := make([]packet, 0, 4)
 		p = <-packetChan
+		dataRecived = append(dataRecived, p)
 		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
 
-			dataRecived = append(dataRecived, p)
 			p = <-packetChan
+			dataRecived = append(dataRecived, p)
 			if i != int(p.mesLen)-1 {
 				confChan <- 1
 			}
@@ -142,12 +127,11 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 			return dataRecived[i].sequenceNum < dataRecived[j].sequenceNum
 		})
 
+		var message string
 		for i := 0; i < int(p.mesLen); i++ {
-			message += string(dataRecived[i].data[:])
-			// fmt.Println(i, " -- ", dataRecived[i])
+			message += string(dataRecived[i].data)
 		}
 		fmt.Println(message)
-		fmt.Println(len(strings.Trim(message, " ")))
 		time.Sleep(2)
 		finishvar = 1
 	}
