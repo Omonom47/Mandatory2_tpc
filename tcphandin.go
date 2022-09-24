@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -33,21 +34,31 @@ func MakePacket(data [8]byte, seqNum uint32, srcPort uint16, desPort uint16) pac
 }
 
 func FragmentMessage(message string) []packet {
-	asBytes := []byte(message)
-	mesLen := len(asBytes)
-	toReturn := make([]packet, mesLen/8)
+	mesLen := len(message)
+	toReturn := make([]packet, 0, 4)
 	var seq uint32 = 0
 
 	source := uint16(rand.Int31n(1024))
 	destination := uint16(rand.Int31n(1024))
+
 	var fragment [8]byte
 	for i := 0; i < mesLen; i++ {
-		fragment[i%8] = asBytes[i]
-		if i+1%8 == 0 {
+		fragment[i%8] = message[i]
+		if (i+1)%8 == 0 {
 			toReturn = append(toReturn, MakePacket(fragment, seq, source, destination))
 			seq++
 		}
+		checkNum := mesLen - i
+		if checkNum < 8 {
+			for x := 0; x < checkNum; x++ {
+				fragment[x%8] = message[x+i]
+			}
+			toReturn = append(toReturn, MakePacket(fragment, seq, source, destination))
+			break
+		}
 	}
+
+	fmt.Println(mesLen, ":mesLen, ", len(toReturn), ":toReturn")
 
 	for i := 0; i < len(toReturn); i++ {
 		toReturn[i].mesLen = uint32(len(toReturn))
@@ -77,25 +88,31 @@ func IntPow(base uint16, exp int) uint16 {
 }
 
 var finish sync.WaitGroup
+var finishvar int
 
 func main() {
 
 	channel := make(chan packet)
 	ack := make(chan [2]int)
 	confirmationChan := make(chan int)
+	finishvar = 0
 
 	finish.Add(2)
-
-	go Client(CreateRandomData(rand.Intn(10-1)+1), ack, channel, confirmationChan)
+	go Client("client", ack, channel, confirmationChan)
 	go Server(channel, ack, confirmationChan)
+
+	for {
+		if finishvar == 1 {
+			break
+		}
+	}
 
 }
 
 func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int) {
 
 	defer finish.Done()
-	fmt.Print("HER")
-	// initSeq := rand.Intn(2-1) + 1 //number between 1-2
+
 	recieved := <-threewayChan
 	randomSeq := rand.Int()
 	var message string
@@ -104,63 +121,68 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 	} else {
 		time.Sleep(10)
 	}
-	// fmt.Print(recieved[0], " ----- ", randomSeq)
+	recieved = <-threewayChan
 	if recieved[0] == randomSeq+1 {
-		fmt.Print("her")
 		//confirmation of recieving packet
-		p := <-packetChan
-		dataRecived := make([]packet, p.mesLen) //queue with packet that sort into right order
+		var p packet
+		dataRecived := make([]packet, 4) //queue with packet that sort into right order
+		p = <-packetChan
+		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
-			p = <-packetChan
+
 			dataRecived = append(dataRecived, p)
-			confChan <- 1
+			p = <-packetChan
+			if i != int(p.mesLen)-1 {
+				confChan <- 1
+			}
 		}
-		confChan <- 0
 
 		sort.SliceStable(dataRecived, func(i, j int) bool {
 			return dataRecived[i].sequenceNum < dataRecived[j].sequenceNum
 		})
 
 		for i := 0; i < int(p.mesLen); i++ {
-			for j := 0; j < 8; j++ {
-				message += string(dataRecived[i].data[j])
-			}
+			message += string(dataRecived[i].data[:])
+			// fmt.Println(i, " -- ", dataRecived[i])
 		}
 		fmt.Println(message)
-		//end of message
-		//need to have the real fin?
-		time.Sleep(10)
-		threewayChan <- [2]int{0, 0}
+		fmt.Println(len(strings.Trim(message, " ")))
+		time.Sleep(2)
+		finishvar = 1
 	}
-	time.Sleep(10)
 
 }
 
 func Client(name string, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
 
 	defer finish.Done()
-	//3wayhandshakefunc
-	for true {
-		senddata := rand.Int31n(2)
-		if senddata == 1 {
-			datasize := rand.Intn(100-1) + 1
-			data := CreateRandomData(datasize)
-			check := rand.Int()
-			threewayChan <- [2]int{1, check}
-			time.Sleep(5)
-			confirmation := <-threewayChan
-			if confirmation[0] == check+1 {
-				packets := FragmentMessage(data)
-				seqNum := confirmation[1]
-				threewayChan <- [2]int{seqNum + 1, check + 1}
-				for i := 0; i < len(packets); i++ {
-					packetChan <- packets[i]
-					time.Sleep(2)
-					if <-confChan == 1 {
-					} else {
-						break
-					}
+
+	senddata := 1 //rand.Int31n(2)
+	if senddata == 1 {
+		datasize := rand.Intn(100) + 1
+		data := CreateRandomData(datasize)
+
+		fmt.Println(data)
+		fmt.Println(len(data))
+
+		check := rand.Int()
+		threewayChan <- [2]int{1, check}
+		time.Sleep(5)
+		confirmation := <-threewayChan
+		if confirmation[0] == check+1 {
+
+			packets := FragmentMessage(data)
+			seqNum := confirmation[1]
+			threewayChan <- [2]int{seqNum + 1, check + 1}
+
+			for i := 0; i < len(packets); i++ {
+				packetChan <- packets[i]
+				time.Sleep(2)
+				conf := <-confChan
+
+				if conf != 1 {
+					break
 				}
 			}
 		}
@@ -174,5 +196,6 @@ func CreateRandomData(n int) string {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
+
 	return string(b)
 }
