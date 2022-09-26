@@ -145,7 +145,7 @@ func Server(packetChan chan packet /*conApprChan chan int,*/, threewayChan chan 
 
 }
 
-func Client(name string /*conApprChan chan int,*/, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
+func Client(name string, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
 
 	defer finish.Done()
 	time.Sleep(1)
