@@ -121,9 +121,9 @@ func Server(packetChan chan packet /*conApprChan chan int,*/, threewayChan chan 
 		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
-
 			p = <-packetChan
 			dataRecived = append(dataRecived, p)
+			fmt.Println(p.sequenceNum)
 			if i != int(p.mesLen)-1 {
 				confChan <- 1
 			}
@@ -172,8 +172,12 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 			seqNum := confirmation[1]
 			threewayChan <- [2]int{seqNum + 1, check + 1}
 
+			rand.Seed(time.Now().UnixNano())
+			randInterval := rand.Perm(len(packets)) //random interval til at sende packets
 			for i := 0; i < len(packets); i++ {
-				packetChan <- packets[i]
+
+				packetChan <- packets[randInterval[i]] //packets bliver sendt i random order
+
 				time.Sleep(2)
 				conf := <-confChan
 
