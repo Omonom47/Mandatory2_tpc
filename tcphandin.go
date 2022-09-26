@@ -12,6 +12,7 @@ type packet struct {
 	destination uint16
 	sequenceNum uint32
 	checksum    uint16
+	timeStamp   time.Time
 	lifeTime    uint8
 	mesLen      uint32
 	data        byte
@@ -24,6 +25,7 @@ func MakePacket(data byte, seqNum uint32, srcPort uint16, desPort uint16, mesHas
 	p.destination = desPort
 	p.sequenceNum = seqNum
 	p.checksum = mesHash
+	p.timeStamp = time.Now()
 	p.lifeTime = 5
 
 	return p
@@ -77,7 +79,7 @@ func main() {
 
 	serverChanSlice := make([]chan [2]int, 0, 5)
 	channelSlice := make([]chan packet, 0, 5)
-	threewaySlice := make([]chan [2]int, 0, 5)
+	ackSlice := make([]chan [2]int, 0, 5)
 	confirmationSlice := make([]chan int, 0, 5)
 
 	for i := 0; i < 5; i++ {
@@ -89,18 +91,18 @@ func main() {
 		fromClient := make(chan packet)
 		channelSlice = append(channelSlice, fromServer)
 
-		fromServerThreeway := make(chan [2]int)
-		fromClientThreeway := make(chan [2]int)
-		threewaySlice = append(threewaySlice, fromServerThreeway)
+		fromServerAck := make(chan [2]int)
+		fromClientAck := make(chan [2]int)
+		ackSlice = append(ackSlice, fromServerAck)
 
 		fromServerConfirmation := make(chan int)
 		fromClientConfirmation := make(chan int)
 		confirmationSlice = append(confirmationSlice, fromServerConfirmation)
-		go Client(i+1, fromClientChan, fromClientThreeway, fromClient, fromClientConfirmation)
-		go MiddleWare(fromClient, fromServer, i+1, fromServerThreeway, fromClientThreeway, fromClientConfirmation, fromServerConfirmation)
+		go Client(i+1, fromClientChan, fromClientAck, fromClient, fromClientConfirmation)
+		go MiddleWare(fromClient, fromServer, i+1)
 	}
 
-	go Server(serverChanSlice, channelSlice, threewaySlice, confirmationSlice)
+	go Server(serverChanSlice, channelSlice, ackSlice, confirmationSlice)
 
 	for {
 		if finishvar == 5 {
@@ -171,7 +173,7 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 
 				packetChan <- packets[i]
 
-				time.Sleep(time.Duration(packets[i].lifeTime))
+				time.Sleep(2)
 
 				select {
 				case <-confChan:
@@ -197,36 +199,25 @@ func CreateRandomData(n int) string {
 	return string(b)
 }
 
-func MiddleWare(fromClientMes chan packet, toServerMes chan packet, clientName int,
+func MiddleWare(fromClient chan packet, toServer chan packet, clientName int,
 	fromServerThreeway chan [2]int, fromClientThreeway chan [2]int,
-	toClientConfirmation chan int, fromServerConfirmation chan int) {
+	fromClientConfirmation chan int, fromServerConfirmation chan int) {
 
 	for {
 		rand.Seed(time.Now().UnixNano())
 		randNum := rand.Intn(101)
-		select {
-		case ack := <-fromServerThreeway:
-			fromClientThreeway <- ack
+		p := <-fromClient
 
-		case syn := <-fromClientThreeway:
-			fromServerThreeway <- syn
-		case p := <-fromClientMes:
-			switch randNum {
-			case 100, 99:
-			default:
-				toServerMes <- p
-			}
-		case conf := <-fromServerConfirmation:
-			toClientConfirmation <- conf
-
+		switch randNum {
+		case 100, 99:
 		default:
-
+			toServer <- p
 		}
 
 	}
 }
 
-func Server(serverChanSlice []chan [2]int, messageSlice []chan packet, threewaySlice []chan [2]int, confirmationSlice []chan int) {
+func Server(serverChanSlice []chan [2]int, messageSlice []chan packet, ackSlice []chan [2]int, confirmationSlice []chan int) {
 
 	for {
 		for i := 0; i < 5; i++ {
@@ -234,7 +225,7 @@ func Server(serverChanSlice []chan [2]int, messageSlice []chan packet, threewayS
 			recieved := <-serverChanSlice[i]
 			if recieved[0] != 0 {
 				clientNumber := recieved[0] - 1
-				go RequestHandle(messageSlice[clientNumber], recieved[1], threewaySlice[clientNumber], confirmationSlice[clientNumber], clientNumber+1)
+				go RequestHandle(messageSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber+1)
 			}
 		}
 	}
