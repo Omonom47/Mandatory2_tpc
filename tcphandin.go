@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"sync"
 	"time"
 )
 
@@ -72,44 +71,29 @@ func IntPow(base uint16, exp int) uint16 {
 	return result
 }
 
-var finish sync.WaitGroup
 var finishvar int
 
 func main() {
 
-	channel := make(chan packet)
-	ack := make(chan [2]int)
-	//connectPosChan := make(chan int)
-	confirmationChan := make(chan int)
 	finishvar = 0
-
-	finish.Add(2)
-	go Client("client", ack, channel, confirmationChan)
-	go Server(channel, ack, confirmationChan)
+	go Server()
 
 	for {
-		if finishvar == 1 {
+		if finishvar == 5 {
 			break
 		}
 	}
 
 }
 
-func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int) {
+func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, confChan chan int, client int) {
 
-	defer finish.Done()
-	//available := 1
-	recieved := <-threewayChan
+	clientInfo := info
 	randomSeq := rand.Int()
-	//conApprChan <- available
-	if recieved[0] == 1 {
-		threewayChan <- [2]int{recieved[1] + 1, randomSeq}
-		//conApprChan <- available
-		//available = 0
-	} else {
-		time.Sleep(10)
-	}
-	recieved = <-threewayChan
+
+	threewayChan <- [2]int{clientInfo + 1, randomSeq}
+
+	recieved := <-threewayChan
 	if recieved[0] == randomSeq+1 {
 		//confirmation of recieving packet
 		var p packet
@@ -119,9 +103,9 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
+
 			p = <-packetChan
 			dataRecived = append(dataRecived, p)
-			fmt.Println(p.sequenceNum)
 			if i != int(p.mesLen)-1 {
 				confChan <- 1
 			}
@@ -135,28 +119,26 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 		for i := 0; i < int(p.mesLen); i++ {
 			message += string(dataRecived[i].data)
 		}
-		fmt.Println(message)
-		time.Sleep(2)
-		finishvar = 1
+		fmt.Println("Client ", client, message)
+		finishvar++
 	}
 
 }
 
-func Client(name string, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
+func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
 
-	defer finish.Done()
-	time.Sleep(1)
+	datasize := rand.Intn(100) + 1
+	data := CreateRandomData(datasize)
 
-	senddata := 1 //rand.Int31n(4)
-	if senddata == 1 {
-		datasize := rand.Intn(100) + 1
-		data := CreateRandomData(datasize)
+	//fmt.Println(data)
+	//fmt.Println(len(data))
 
-		fmt.Println(data)
-		fmt.Println(len(data))
+	available := <-serverChan
 
+	//fmt.Println("appr is: ", approved)
+	if available[1] == 0 {
 		check := rand.Int()
-		threewayChan <- [2]int{1, check}
+		serverChan <- [2]int{name, check}
 		time.Sleep(5)
 		confirmation := <-threewayChan
 		if confirmation[0] == check+1 {
@@ -165,7 +147,6 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 			seqNum := confirmation[1]
 			threewayChan <- [2]int{seqNum + 1, check + 1}
 
-			//random interval til at sende packets
 			for i := 0; i < len(packets); i++ {
 
 				packetChan <- packets[i]
@@ -181,8 +162,9 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 
 			}
 		}
+	} else {
+		fmt.Println("Client", name, "server not available")
 	}
-
 }
 
 func CreateRandomData(n int) string {
@@ -215,5 +197,35 @@ func MiddleWare(fromClient chan packet, toServer chan packet, clientName string,
 		}
 
 	}
+}
 
+func Server() {
+
+	serverChanSlice := make([]chan [2]int, 0, 5)
+	channelSlice := make([]chan packet, 0, 5)
+	ackSlice := make([]chan [2]int, 0, 5)
+	confirmationSlice := make([]chan int, 0, 5)
+
+	for i := 0; i < 5; i++ {
+		serverChan := make(chan [2]int)
+		serverChanSlice = append(serverChanSlice, serverChan)
+		channel := make(chan packet)
+		channelSlice = append(channelSlice, channel)
+		ack := make(chan [2]int)
+		ackSlice = append(ackSlice, ack)
+		confirmationChan := make(chan int)
+		confirmationSlice = append(confirmationSlice, confirmationChan)
+		go Client(i+1, serverChan, ack, channel, confirmationChan)
+	}
+
+	for {
+		for i := 0; i < 5; i++ {
+			serverChanSlice[i] <- [2]int{0, 0}
+			recieved := <-serverChanSlice[i]
+			if recieved[0] != 0 {
+				clientNumber := recieved[0] - 1
+				go RequestHandle(channelSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber)
+			}
+		}
+	}
 }
