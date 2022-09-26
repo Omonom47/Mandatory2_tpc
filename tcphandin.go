@@ -75,8 +75,25 @@ var finishvar int
 
 func main() {
 
+	serverChanSlice := make([]chan [2]int, 0, 5)
+	channelSlice := make([]chan packet, 0, 5)
+	ackSlice := make([]chan [2]int, 0, 5)
+	confirmationSlice := make([]chan int, 0, 5)
+
+	for i := 0; i < 5; i++ {
+		serverChan := make(chan [2]int)
+		serverChanSlice = append(serverChanSlice, serverChan)
+		channel := make(chan packet)
+		channelSlice = append(channelSlice, channel)
+		ack := make(chan [2]int)
+		ackSlice = append(ackSlice, ack)
+		confirmationChan := make(chan int)
+		confirmationSlice = append(confirmationSlice, confirmationChan)
+		go Client(i+1, serverChan, ack, channel, confirmationChan)
+	}
+
 	finishvar = 0
-	go Server()
+	go Server(serverChanSlice, channelSlice, ackSlice, confirmationSlice)
 
 	for {
 		if finishvar == 5 {
@@ -172,24 +189,7 @@ func CreateRandomData(n int) string {
 	return string(b)
 }
 
-func Server() {
-
-	serverChanSlice := make([]chan [2]int, 0, 5)
-	channelSlice := make([]chan packet, 0, 5)
-	ackSlice := make([]chan [2]int, 0, 5)
-	confirmationSlice := make([]chan int, 0, 5)
-
-	for i := 0; i < 5; i++ {
-		serverChan := make(chan [2]int)
-		serverChanSlice = append(serverChanSlice, serverChan)
-		channel := make(chan packet)
-		channelSlice = append(channelSlice, channel)
-		ack := make(chan [2]int)
-		ackSlice = append(ackSlice, ack)
-		confirmationChan := make(chan int)
-		confirmationSlice = append(confirmationSlice, confirmationChan)
-		go Client(i+1, serverChan, ack, channel, confirmationChan)
-	}
+func Server(serverChanSlice []chan [2]int, channelSlice []chan packet, ackSlice []chan [2]int, confirmationSlice []chan int) {
 
 	for {
 		for i := 0; i < 5; i++ {
