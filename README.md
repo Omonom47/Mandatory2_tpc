@@ -1,3 +1,6 @@
+# To run
+To start the program simply type "go run tcphanding.go" During the programs runtime you should see a series of line in the in the format: "Client [client number] [a random string that is generated]". When all the Clients have been connected to the server and outprinted the 5 messages recieved the program will terminate
+
 # Mandatory2_tpc
 **a) What are packages in your implementation? What data structure did
 you use to transmit data and meta-data?**
@@ -16,7 +19,7 @@ realistic to use threads?**
 
 
 **d) How do you handle message loss?**
-- In the current code we dont take message loss into consideration, but if we were to implement it, we would make a check in our *Server()* function that makes sure the packets recieved are the same as the length of the packets. If it isn't then the *Server()* will ask the *Client()* to send the missing packets again, and then reorder the packets and outprint the message recieved
+- In the current code we simulate message message loss, by having a switch-statement that sometimes throws packets away, as could happen in a real tcp connection. we make a check in our *Server()* function that makes sure the packets recieved, and send a confirmation to *Client()*. If it doesn't get a confirmation inside a certain time frame then it resends the packet.
 
 
 **e) Why is the 3-way handshake important?**
