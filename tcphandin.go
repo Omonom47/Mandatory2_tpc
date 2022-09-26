@@ -84,10 +84,8 @@ func main() {
 	finishvar = 0
 
 	finish.Add(2)
-	go Client("client" /*connectPosChan,*/, ack, channel, confirmationChan)
-	//go Client("client 2", connectPosChan, ack, channel, confirmationChan)
-	//go Client("client 3", connectPosChan, ack, channel, confirmationChan)
-	go Server(channel /*connectPosChan,*/, ack, confirmationChan)
+	go Client("client", ack, channel, confirmationChan)
+	go Server(channel, ack, confirmationChan)
 
 	for {
 		if finishvar == 1 {
@@ -97,7 +95,7 @@ func main() {
 
 }
 
-func Server(packetChan chan packet /*conApprChan chan int,*/, threewayChan chan [2]int, confChan chan int) {
+func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int) {
 
 	defer finish.Done()
 	//available := 1
@@ -138,7 +136,6 @@ func Server(packetChan chan packet /*conApprChan chan int,*/, threewayChan chan 
 			message += string(dataRecived[i].data)
 		}
 		fmt.Println(message)
-		//available = 1
 		time.Sleep(2)
 		finishvar = 1
 	}
@@ -158,10 +155,6 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 		fmt.Println(data)
 		fmt.Println(len(data))
 
-		/*approved := <-conApprChan
-
-		fmt.Println("appr is: ", approved)
-		if approved == 1 {*/
 		check := rand.Int()
 		threewayChan <- [2]int{1, check}
 		time.Sleep(5)
@@ -172,23 +165,22 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 			seqNum := confirmation[1]
 			threewayChan <- [2]int{seqNum + 1, check + 1}
 
-			rand.Seed(time.Now().UnixNano())
-			randInterval := rand.Perm(len(packets)) //random interval til at sende packets
+			//random interval til at sende packets
 			for i := 0; i < len(packets); i++ {
 
-				packetChan <- packets[randInterval[i]] //packets bliver sendt i random order
+				packetChan <- packets[i]
 
 				time.Sleep(2)
-				conf := <-confChan
 
-				if conf != 1 {
-					break
+				select {
+				case <-confChan:
+
+				default:
+					i--
 				}
+
 			}
 		}
-		/*} else {
-			fmt.Println("server not available")
-		}*/
 	}
 
 }
@@ -201,4 +193,27 @@ func CreateRandomData(n int) string {
 	}
 
 	return string(b)
+}
+
+func MiddleWare(fromClient chan packet, toServer chan packet, clientName string, threewayChan chan [2]int, confChan chan int) {
+
+	for {
+		rand.Seed(time.Now().UnixNano())
+		randNum := rand.Intn(101)
+		p := <-fromClient
+
+		switch randNum {
+		case 100, 99:
+		case 49, 51:
+			corrupted := p.data
+			corrupted = corrupted << 2
+			corrupted = ^corrupted
+			p.data = corrupted
+			toServer <- p
+		default:
+			toServer <- p
+		}
+
+	}
+
 }
