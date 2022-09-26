@@ -79,12 +79,15 @@ func main() {
 
 	channel := make(chan packet)
 	ack := make(chan [2]int)
+	//connectPosChan := make(chan int)
 	confirmationChan := make(chan int)
 	finishvar = 0
 
 	finish.Add(2)
-	go Client("client", ack, channel, confirmationChan)
-	go Server(channel, ack, confirmationChan)
+	go Client("client" /*connectPosChan,*/, ack, channel, confirmationChan)
+	//go Client("client 2", connectPosChan, ack, channel, confirmationChan)
+	//go Client("client 3", connectPosChan, ack, channel, confirmationChan)
+	go Server(channel /*connectPosChan,*/, ack, confirmationChan)
 
 	for {
 		if finishvar == 1 {
@@ -94,14 +97,17 @@ func main() {
 
 }
 
-func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int) {
+func Server(packetChan chan packet /*conApprChan chan int,*/, threewayChan chan [2]int, confChan chan int) {
 
 	defer finish.Done()
-
+	//available := 1
 	recieved := <-threewayChan
 	randomSeq := rand.Int()
+	//conApprChan <- available
 	if recieved[0] == 1 {
 		threewayChan <- [2]int{recieved[1] + 1, randomSeq}
+		//conApprChan <- available
+		//available = 0
 	} else {
 		time.Sleep(10)
 	}
@@ -132,17 +138,19 @@ func Server(packetChan chan packet, threewayChan chan [2]int, confChan chan int)
 			message += string(dataRecived[i].data)
 		}
 		fmt.Println(message)
+		//available = 1
 		time.Sleep(2)
 		finishvar = 1
 	}
 
 }
 
-func Client(name string, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
+func Client(name string /*conApprChan chan int,*/, threewayChan chan [2]int, packetChan chan packet, confChan chan int) {
 
 	defer finish.Done()
+	time.Sleep(1)
 
-	senddata := 1 //rand.Int31n(2)
+	senddata := 1 //rand.Int31n(4)
 	if senddata == 1 {
 		datasize := rand.Intn(100) + 1
 		data := CreateRandomData(datasize)
@@ -150,6 +158,10 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 		fmt.Println(data)
 		fmt.Println(len(data))
 
+		/*approved := <-conApprChan
+
+		fmt.Println("appr is: ", approved)
+		if approved == 1 {*/
 		check := rand.Int()
 		threewayChan <- [2]int{1, check}
 		time.Sleep(5)
@@ -170,6 +182,9 @@ func Client(name string, threewayChan chan [2]int, packetChan chan packet, confC
 				}
 			}
 		}
+		/*} else {
+			fmt.Println("server not available")
+		}*/
 	}
 
 }
