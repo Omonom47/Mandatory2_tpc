@@ -167,11 +167,13 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 			for i := 0; i < len(packets); i++ {
 				packetChan <- packets[i]
 				time.Sleep(2)
-				conf := <-confChan
-
-				if conf != 1 {
-					break
+				select {
+				case <-confChan:
+					//confirmation recieved
+				default:
+					i--
 				}
+
 			}
 		}
 	} else {
