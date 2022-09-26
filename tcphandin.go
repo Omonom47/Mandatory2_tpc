@@ -76,7 +76,6 @@ var finishvar int
 func main() {
 
 	finishvar = 0
-
 	go Server()
 
 	for {
@@ -87,7 +86,7 @@ func main() {
 
 }
 
-func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, confChan chan int) {
+func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, confChan chan int, client int) {
 
 	clientInfo := info
 	randomSeq := rand.Int()
@@ -104,6 +103,7 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
+
 			p = <-packetChan
 			dataRecived = append(dataRecived, p)
 			if i != int(p.mesLen)-1 {
@@ -119,7 +119,7 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		for i := 0; i < int(p.mesLen); i++ {
 			message += string(dataRecived[i].data)
 		}
-		fmt.Println("Final ", message)
+		fmt.Println("Client ", client, message)
 		finishvar++
 	}
 
@@ -147,12 +147,8 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 			seqNum := confirmation[1]
 			threewayChan <- [2]int{seqNum + 1, check + 1}
 
-			rand.Seed(time.Now().UnixNano())
-			randInterval := rand.Perm(len(packets)) //random interval til at sende packets
 			for i := 0; i < len(packets); i++ {
-
-				packetChan <- packets[randInterval[i]] //packets bliver sendt i random order
-
+				packetChan <- packets[i]
 				time.Sleep(2)
 				conf := <-confChan
 
@@ -162,7 +158,7 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 			}
 		}
 	} else {
-		fmt.Println("server not available")
+		fmt.Println("Client", name, "server not available")
 	}
 }
 
@@ -178,11 +174,14 @@ func CreateRandomData(n int) string {
 
 func Server() {
 
+	serverChanSlice := make([]chan [2]int, 0, 5)
 	channelSlice := make([]chan packet, 0, 5)
 	ackSlice := make([]chan [2]int, 0, 5)
 	confirmationSlice := make([]chan int, 0, 5)
-	serverChan := make(chan [2]int)
+
 	for i := 0; i < 5; i++ {
+		serverChan := make(chan [2]int)
+		serverChanSlice = append(serverChanSlice, serverChan)
 		channel := make(chan packet)
 		channelSlice = append(channelSlice, channel)
 		ack := make(chan [2]int)
@@ -193,11 +192,13 @@ func Server() {
 	}
 
 	for {
-		serverChan <- [2]int{0, 0}
-		recieved := <-serverChan
-		if recieved[0] != 0 {
-			clientNumber := recieved[0] - 1
-			go RequestHandle(channelSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber])
+		for i := 0; i < 5; i++ {
+			serverChanSlice[i] <- [2]int{0, 0}
+			recieved := <-serverChanSlice[i]
+			if recieved[0] != 0 {
+				clientNumber := recieved[0] - 1
+				go RequestHandle(channelSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber)
+			}
 		}
 	}
 }
