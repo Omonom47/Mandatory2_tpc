@@ -76,7 +76,33 @@ var finishvar int
 func main() {
 
 	finishvar = 0
-	go Server()
+
+	serverChanSlice := make([]chan [2]int, 0, 5)
+	channelSlice := make([]chan packet, 0, 5)
+	ackSlice := make([]chan [2]int, 0, 5)
+	confirmationSlice := make([]chan int, 0, 5)
+
+	for i := 0; i < 5; i++ {
+		fromServerChan := make(chan [2]int)
+		fromClientChan := make(chan [2]int)
+		serverChanSlice = append(serverChanSlice, fromServerChan)
+
+		fromServer := make(chan packet)
+		fromClient := make(chan packet)
+		channelSlice = append(channelSlice, fromServer)
+
+		fromServerAck := make(chan [2]int)
+		fromClientAck := make(chan [2]int)
+		ackSlice = append(ackSlice, fromServerAck)
+
+		fromServerConfirmation := make(chan int)
+		fromClientConfirmation := make(chan int)
+		confirmationSlice = append(confirmationSlice, fromServerConfirmation)
+		go Client(i+1, fromClientChan, fromClientAck, fromClient, fromClientConfirmation)
+		go MiddleWare(fromClient, fromServer, i+1)
+	}
+
+	go Server(serverChanSlice, channelSlice, ackSlice, confirmationSlice)
 
 	for {
 		if finishvar == 5 {
@@ -130,12 +156,8 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 	datasize := rand.Intn(100) + 1
 	data := CreateRandomData(datasize)
 
-	//fmt.Println(data)
-	//fmt.Println(len(data))
-
 	available := <-serverChan
 
-	//fmt.Println("appr is: ", approved)
 	if available[1] == 0 {
 		check := rand.Int()
 		serverChan <- [2]int{name, check}
@@ -177,7 +199,9 @@ func CreateRandomData(n int) string {
 	return string(b)
 }
 
-func MiddleWare(fromClient chan packet, toServer chan packet, clientName string, threewayChan chan [2]int, confChan chan int) {
+func MiddleWare(fromClient chan packet, toServer chan packet, clientName int,
+	fromServerThreeway chan [2]int, fromClientThreeway chan [2]int,
+	fromClientConfirmation chan int, fromServerConfirmation chan int) {
 
 	for {
 		rand.Seed(time.Now().UnixNano())
@@ -186,12 +210,6 @@ func MiddleWare(fromClient chan packet, toServer chan packet, clientName string,
 
 		switch randNum {
 		case 100, 99:
-		case 49, 51:
-			corrupted := p.data
-			corrupted = corrupted << 2
-			corrupted = ^corrupted
-			p.data = corrupted
-			toServer <- p
 		default:
 			toServer <- p
 		}
@@ -199,24 +217,7 @@ func MiddleWare(fromClient chan packet, toServer chan packet, clientName string,
 	}
 }
 
-func Server() {
-
-	serverChanSlice := make([]chan [2]int, 0, 5)
-	channelSlice := make([]chan packet, 0, 5)
-	ackSlice := make([]chan [2]int, 0, 5)
-	confirmationSlice := make([]chan int, 0, 5)
-
-	for i := 0; i < 5; i++ {
-		serverChan := make(chan [2]int)
-		serverChanSlice = append(serverChanSlice, serverChan)
-		channel := make(chan packet)
-		channelSlice = append(channelSlice, channel)
-		ack := make(chan [2]int)
-		ackSlice = append(ackSlice, ack)
-		confirmationChan := make(chan int)
-		confirmationSlice = append(confirmationSlice, confirmationChan)
-		go Client(i+1, serverChan, ack, channel, confirmationChan)
-	}
+func Server(serverChanSlice []chan [2]int, messageSlice []chan packet, ackSlice []chan [2]int, confirmationSlice []chan int) {
 
 	for {
 		for i := 0; i < 5; i++ {
@@ -224,7 +225,7 @@ func Server() {
 			recieved := <-serverChanSlice[i]
 			if recieved[0] != 0 {
 				clientNumber := recieved[0] - 1
-				go RequestHandle(channelSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber)
+				go RequestHandle(messageSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber+1)
 			}
 		}
 	}
