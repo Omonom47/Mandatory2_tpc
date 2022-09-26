@@ -16,7 +16,7 @@ realistic to use threads?**
 
 
 **d) How do you handle message loss?**
-- In the current code we dont take message loss into consideration, but if we were to implement it, we would make a check in our *Server()* function that makes sure the packets recieved are the same as the length of the packets. If it isn't then the *Server()* will ask the *Client()* to send the missing packets again, and then reorder the packets and outprint the message recieved
+- In the current code we simulate message message loss, by having a switch-statement that sometimes throws packets away, as could happen in a real tcp connection. we make a check in our *Server()* function that makes sure the packets recieved, and send a confirmation to *Client()*. If it doesn't get a confirmation inside a certain time frame then it resends the packet.
 
 
 **e) Why is the 3-way handshake important?**

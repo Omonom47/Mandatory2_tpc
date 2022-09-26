@@ -106,7 +106,6 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		for i := 0; i < int(p.mesLen)-1; i++ {
 			p = <-packetChan
 			dataRecived = append(dataRecived, p)
-			fmt.Println(p.sequenceNum)
 			if i != int(p.mesLen)-1 {
 				confChan <- 1
 			}
@@ -120,7 +119,7 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		for i := 0; i < int(p.mesLen); i++ {
 			message += string(dataRecived[i].data)
 		}
-		fmt.Println(message)
+		fmt.Println("Final ", message)
 		finishvar++
 	}
 
