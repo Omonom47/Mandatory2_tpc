@@ -104,7 +104,6 @@ func main() {
 }
 
 func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, confChan chan int, client int) {
-
 	clientInfo := info
 	randomSeq := rand.Int()
 
@@ -112,6 +111,7 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 
 	recieved := <-threewayChan
 	if recieved[0] == randomSeq+1 {
+		fmt.Println("Request Handle", client, " from server - Handling connection with client", client)
 		//confirmation of recieving packet
 		var p packet
 		dataRecived := make([]packet, 0, 4)
@@ -120,7 +120,6 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		confChan <- 1
 
 		for i := 0; i < int(p.mesLen)-1; i++ {
-
 			p = <-packetChan
 			dataRecived = append(dataRecived, p)
 			if i != int(p.mesLen)-1 {
@@ -136,7 +135,8 @@ func RequestHandle(packetChan chan packet, info int, threewayChan chan [2]int, c
 		for i := 0; i < int(p.mesLen); i++ {
 			message += string(dataRecived[i].data)
 		}
-		fmt.Println("Client ", client, message)
+		fmt.Println("--------------------")
+		fmt.Println("Recived Data: ", message, " --- from Client ", client)
 		finishvar++
 	}
 
@@ -147,13 +147,13 @@ func Client(name int, serverChan chan [2]int, threewayChan chan [2]int, packetCh
 	datasize := rand.Intn(100) + 1
 	data := CreateRandomData(datasize)
 
-	//fmt.Println(data)
 	//fmt.Println(len(data))
 
 	available := <-serverChan
 
 	//fmt.Println("appr is: ", approved)
 	if available[1] == 0 {
+		fmt.Println("Attempting to send: ", data, "  -- from client ", name)
 		check := rand.Int()
 		serverChan <- [2]int{name, check}
 		time.Sleep(5)
@@ -192,13 +192,14 @@ func CreateRandomData(n int) string {
 }
 
 func Server(serverChanSlice []chan [2]int, channelSlice []chan packet, ackSlice []chan [2]int, confirmationSlice []chan int) {
-
 	for {
 		for i := 0; i < 5; i++ {
 			serverChanSlice[i] <- [2]int{0, 0}
 			recieved := <-serverChanSlice[i]
 			if recieved[0] != 0 {
+				fmt.Println("--------------------")
 				clientNumber := recieved[0] - 1
+				fmt.Println("Recived contact Request from Client No", clientNumber)
 				go RequestHandle(channelSlice[clientNumber], recieved[1], ackSlice[clientNumber], confirmationSlice[clientNumber], clientNumber)
 			}
 		}
